@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using Spectre.Console;
 
 namespace BFBCServerList
 {
@@ -115,38 +116,83 @@ namespace BFBCServerList
                     PlayerCount = int.Parse(serverData[58]),
                     Balance = serverData[28],
                     Type = serverData[16],
-                    BUType = serverData[42],
+                    BUType = (BUType)Enum.Parse(typeof(BUType), serverData[42], ignoreCase: true),
                     IsStable = new[] { "iad", "sjc", "gva" }
                         .Contains(serverData[6], StringComparer.InvariantCultureIgnoreCase)
                             && serverData[16] == "O"
                 });
             }
 
-            var openedServers = servers
-                .Where(x => x.Type == "O")
-                .OrderByDescending(x => x.IsStable)
-                .ToList();
+            var rankedServers = GetStableServers(servers, BUType.Ranked);
+            var unrankedServers = GetStableServers(servers, BUType.Unranked);
 
-            Console.WriteLine($"Stable servers: {openedServers.Count(x => x.IsStable)}");
-            Console.WriteLine($"Unstable servers: {openedServers.Count(x => !x.IsStable)}");
-            Console.WriteLine();
+            AnsiConsole.MarkupLine($"[green1]Stable[/] ranked servers: {rankedServers.Count(x => x.IsStable)}");
+            AnsiConsole.MarkupLine($"[red1]Unstable[/] ranked servers: {rankedServers.Count(x => !x.IsStable)}");
 
-            for (var i = 0; i < openedServers.Count; i++)
+            if (rankedServers.Any())
             {
-                Console.WriteLine($"-------Server #{i + 1} ({(openedServers[i].IsStable ? "stable" : "unstable")})-------");
-                Console.WriteLine($"{nameof(ServerInfo.Location)}: {openedServers[i].Location}");
-                Console.WriteLine($"{nameof(ServerInfo.Level)}: {openedServers[i].Level}");
-                Console.WriteLine($"{nameof(ServerInfo.Name)}: {openedServers[i].Name}");
-                Console.WriteLine($"{nameof(ServerInfo.IP)}: {openedServers[i].IP}");
-                Console.WriteLine($"{nameof(ServerInfo.Port)}: {openedServers[i].Port}");
-                Console.WriteLine($"{nameof(ServerInfo.Mode)}: {openedServers[i].Mode}");
-                Console.WriteLine($"{nameof(ServerInfo.Playgroup)}: {openedServers[i].Playgroup}");
-                Console.WriteLine($"{nameof(ServerInfo.PlayerCount)}: {openedServers[i].PlayerCount}");
-                Console.WriteLine($"{nameof(ServerInfo.Balance)}: {openedServers[i].Balance}");
+                RenderTable(
+                    new TableTitle("RANKED SERVERS", new Style(decoration: Decoration.Bold)),
+                    rankedServers);
+
+                Console.WriteLine();
+            }
+
+            if (unrankedServers.Any())
+            {
+                RenderTable(
+                    new TableTitle("UNRANKED SERVERS", new Style(decoration: Decoration.Bold)),
+                    unrankedServers);
+
                 Console.WriteLine();
             }
 
             return false;
         }
+
+        private static void RenderTable(TableTitle title, IReadOnlyList<ServerInfo> servers)
+        {
+            var table = new Table
+            {
+                Border = TableBorder.Square,
+                Title = title
+            };
+
+            AddTableColumns(table);
+            AddTableRows(table, servers);
+
+            AnsiConsole.Write(table);
+        }
+
+        private static void AddTableColumns(Table table) => table
+            .AddColumns(
+                new TableColumn(nameof(ServerInfo.Location)).Centered(),
+                new TableColumn(nameof(ServerInfo.Name)).Centered(),
+                new TableColumn(nameof(ServerInfo.Level)).Centered(),
+                new TableColumn(nameof(ServerInfo.Mode)).Centered(),
+                new TableColumn(nameof(ServerInfo.PlayerCount)).Centered(),
+                new TableColumn(nameof(ServerInfo.Playgroup)).Centered(),
+                new TableColumn(nameof(ServerInfo.Balance)).Centered());
+
+        private static void AddTableRows(Table table, IReadOnlyList<ServerInfo> servers)
+        {
+            for (var i = 0; i < servers.Count; i++)
+            {
+                table.AddRow(
+                    new Markup(servers[i].Location, new Style(foreground: servers[i].IsStable ? Color.Green1 : Color.Red1)),
+                    new Markup(servers[i].Name),
+                    new Markup(servers[i].Level),
+                    new Markup(servers[i].Mode, new Style(foreground: servers[i].Mode == "GOLDRUSH" ? Color.Gold1 : Color.Blue)),
+                    new Markup(servers[i].PlayerCount.ToString()),
+                    new Markup(servers[i].Playgroup),
+                    new Markup(servers[i].Balance));
+            }
+        }
+
+        private static IReadOnlyList<ServerInfo> GetStableServers(IEnumerable<ServerInfo> servers, BUType buType) => servers
+            .Where(x => x.Type == "O" && x.BUType == buType)
+            .OrderBy(x => x.BUType)
+            .OrderByDescending(x => x.IsStable)
+            .ToList();
     }
 }

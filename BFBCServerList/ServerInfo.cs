@@ -22,7 +22,7 @@
 
         public string Type { get; set; }
 
-        public string BUType { get; set; }
+        public BUType BUType { get; set; }
 
         public bool IsStable { get; set; }
     }
